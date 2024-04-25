@@ -66,12 +66,17 @@ nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('rslp')
 
+# Função para listar todos os arquivos PDF em um diretório
+def listar_pdfs_em_diretorio(diretorio):
+    return [os.path.join(diretorio, arquivo) for arquivo in os.listdir(diretorio) if arquivo.lower().endswith('.pdf')]
+
 
 ''' Função extrair_textos_dos_pdfs()
 
 '''
 # Função para converter múltiplos PDFs em texto puro
-def extrair_textos_dos_pdfs(lista_caminhos_pdf):
+def extrair_textos_dos_pdfs(diretorio):
+    lista_caminhos_pdf = listar_pdfs_em_diretorio(diretorio)
     textos = []
     for caminho_pdf in lista_caminhos_pdf:
         texto = ""
@@ -85,19 +90,16 @@ def extrair_textos_dos_pdfs(lista_caminhos_pdf):
 ''' Função preprocessar_texto()
 
 '''
-# Pré-processamento de texto - tokenizar, remover stop words e stemizar o texto
+# Função para pré-processamento de texto: tokenizar, remover stop words e stemizar o texto
 def preprocessar_texto(texto):
     # Tokenização
     tokens = word_tokenize(texto.lower(), language='portuguese')
-    
-    # Remoção de stopwords
+    # Remoção de stopwords e tokens vazios
     stopwords_pt = set(stopwords.words('portuguese'))
     tokens_filtrados = [token for token in tokens if token.isalnum() and token not in stopwords_pt]
-    
     # Stemming - reduzir palavras focando em seu significado
     stemmer = RSLPStemmer()
     tokens_stemizados = [stemmer.stem(token) for token in tokens_filtrados]
-    
     return ' '.join(tokens_stemizados)
 
 ''' Função construir_indice()
@@ -159,8 +161,8 @@ def gerar_resposta(pergunta, contexto):
 # Função principal
 def principal():
     # 1. Pré-processamento de Dados
-    caminhos_pdfs = ['Política de Alçadas - Algar Tech-V3-01jan_2023.pdf', 'Política de Alçadas - Algar S.A-V2-01jan2023.pdf']  # Adicione os caminhos dos PDFs aqui
-    textos = extrair_textos_dos_pdfs(caminhos_pdfs)
+    diretorio_pdfs = r'C:\Users\gustavo.ferreira\Desktop\IA_chatBot\Políticas'  # Substitua pelo caminho do diretório onde os PDFs estão localizados
+    textos = extrair_textos_dos_pdfs(diretorio_pdfs)
 
     for texto in textos:
         # Verifica se o texto extraído não está vazio
