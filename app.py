@@ -1,13 +1,13 @@
-import dotenv
 import os
 import PyPDF2
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import RSLPStemmer
+from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import openai
+import dotenv
 
 ''' COMO TREINAR O TEXTO BASEADO NO MODELO DE I.A UTILIZADO?
 Gustavo Ferreira
@@ -66,41 +66,36 @@ nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('rslp')
 
-# Função para listar todos os arquivos PDF em um diretório
-def listar_pdfs_em_diretorio(diretorio):
-    return [os.path.join(diretorio, arquivo) for arquivo in os.listdir(diretorio) if arquivo.lower().endswith('.pdf')]
-
-
 ''' Função extrair_textos_dos_pdfs()
 
 '''
 # Função para converter múltiplos PDFs em texto puro
-def extrair_textos_dos_pdfs(diretorio):
-    lista_caminhos_pdf = listar_pdfs_em_diretorio(diretorio)
-    textos = []
-    for caminho_pdf in lista_caminhos_pdf:
-        texto = ""
-        with open(caminho_pdf, 'rb') as arquivo:
-            leitor_pdf = PyPDF2.PdfReader(arquivo)
-            for pagina in leitor_pdf.pages:
-                texto += pagina.extract_text()
-        textos.append(texto)
-    return textos
+# Função para extrair texto puro de um PDF
+def extrair_texto_do_pdf(caminho_pdf):
+    texto = ""
+    with open(caminho_pdf, 'rb') as arquivo:
+        leitor_pdf = PyPDF2.PdfReader(arquivo)
+        for pagina in leitor_pdf.pages:
+            texto += pagina.extract_text()
+    return texto
 
 ''' Função preprocessar_texto()
 
 '''
-# Função para pré-processamento de texto: tokenizar, remover stop words e stemizar o texto
+# Pré-processamento de texto
 def preprocessar_texto(texto):
     # Tokenização
-    tokens = word_tokenize(texto.lower(), language='portuguese')
-    # Remoção de stopwords e tokens vazios
-    stopwords_pt = set(stopwords.words('portuguese'))
-    tokens_filtrados = [token for token in tokens if token.isalnum() and token not in stopwords_pt]
-    # Stemming - reduzir palavras focando em seu significado
-    stemmer = RSLPStemmer()
-    tokens_stemizados = [stemmer.stem(token) for token in tokens_filtrados]
-    return ' '.join(tokens_stemizados)
+    tokens = word_tokenize(texto.lower())
+    # Remoção de stopwords, pontuações e tokens não alfanuméricos
+    stopwords_en = set(stopwords.words('portuguese'))
+    tokens_filtrados = [token for token in tokens if token.isalnum() and token not in stopwords_en]
+    # Lematização
+    lemmatizer = WordNetLemmatizer()
+    tokens_lemmatizados = [lemmatizer.lemmatize(token) for token in tokens_filtrados]
+    if not tokens_lemmatizados:
+        # Se não houver nenhuma palavra alfanumérica após o pré-processamento, manter todas as palavras
+        tokens_lemmatizados = [token for token in tokens if token.isalnum()]
+    return ' '.join(tokens_lemmatizados)
 
 ''' Função construir_indice()
 
@@ -149,13 +144,22 @@ o contexto como prompts. A resposta é então devolvida ao usuário.
 '''
 # Geração de respostas com o ChatGPT
 def gerar_resposta(pergunta, contexto):
+    prompt = f"Contexto: {contexto}\n\nPergunta: {pergunta}\n\nResposta do modelo:\n"
     resposta = openai.Completion.create(
-        engine="gpt-3.5-turbo-instruct",
-        prompt=f"Pergunta: {pergunta}\nContexto: {contexto}\nResposta:",
-        stop=None,
-        temperature=0.9
+        model="gpt-3.5-turbo-instruct",
+        prompt=prompt,
+        max_tokens=300,
+        temperature=0.5,
+        top_p=0.9,
+        frequency_penalty=0.0,
+        presence_penalty=0.0
     )
-    return resposta.choices[0].text.strip()
+    resposta_texto = resposta.choices[0]['text'].strip()
+    # Limpar contexto após cada pergunta
+    contexto = ""
+    # Remover parênteses e aspas
+    resposta_texto = resposta_texto.strip('()"')
+    return resposta_texto
 
 ''' Função principal()
 
@@ -163,19 +167,16 @@ def gerar_resposta(pergunta, contexto):
 # Função principal
 def principal():
     # 1. Pré-processamento de Dados
-    diretorio_pdfs = r'C:\Users\gustavo.ferreira\Desktop\IA_chatBot\Políticas'  # Substitua pelo caminho do diretório onde os PDFs estão localizados
-    textos = extrair_textos_dos_pdfs(diretorio_pdfs)
-
-    for texto in textos:
-        # Verifica se o texto extraído não está vazio
-        if texto.strip() == "":
-            print("O texto extraído de um dos PDFs está vazio. Verifique o PDF.")
-            continue
-
-        texto_preprocessado = preprocessar_texto(texto)
+    caminhos = [r'C:\Users\gustavo.ferreira\Desktop\back-end-ia-chatBot\Política de Alçadas - Algar S.A-V2-01jan2023.pdf',r'C:\Users\gustavo.ferreira\Desktop\back-end-ia-chatBot\Política de Alçadas - Algar Tech-V3-01jan_2023.pdf', r'C:\Users\gustavo.ferreira\Desktop\back-end-ia-chatBot\Política Corporativa de Remuneração-V1-01jan2023.pdf' ] # Substitua pelo caminho do diretório onde os PDFs estão localizados
+    textos = [extrair_texto_do_pdf(caminho) for caminho in caminhos]
+    
+    # Pré-processamento dos textos dos documentos
+    textos_preprocessados = [preprocessar_texto(texto) for texto in textos if texto.strip()]
+    
     # 2. Indexação de Conteúdo
-    documentos = [texto_preprocessado]
-    tfidf_vectorizer, matriz_tfidf = construir_indice(documentos)
+    tfidf_vectorizer, matriz_tfidf = construir_indice(textos_preprocessados)
+
+    contexto = ""  # Inicializa o contexto como uma string vazia
 
     while True:
         # 3. Compreensão de Perguntas
@@ -184,13 +185,21 @@ def principal():
             print("Até logo!")
             break
 
-        # 4. Busca e Recuperação de Informações
-        # Aproxima o vetor gerado da pergunta com os vetores do documento referência para retornar a resposta 
-        doc_relevante = buscar_documentos(pergunta, documentos, tfidf_vectorizer, matriz_tfidf)
+        # Adiciona o contexto à pergunta
+        pergunta_com_contexto = f"{pergunta} {contexto}"
 
-        # 5. Geração de Respostas
-        resposta = gerar_resposta(pergunta, doc_relevante)
+        # 4. Extração de Palavras-Chave
+        palavras_chave = word_tokenize(pergunta_com_contexto.lower())
+
+        # 5. Busca e Recuperação de Informações
+        doc_relevante = buscar_documentos(pergunta_com_contexto, textos_preprocessados, tfidf_vectorizer, matriz_tfidf)
+
+        # 6. Geração de Respostas
+        resposta = gerar_resposta(pergunta_com_contexto, doc_relevante)
         print("Resposta:", resposta)
+
+        # Atualiza o contexto com a última pergunta e resposta
+        contexto += f" Pergunta: {pergunta} Resposta: {resposta}"
 
 if __name__ == "__main__":
     principal()

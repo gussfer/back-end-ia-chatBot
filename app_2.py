@@ -17,16 +17,24 @@ openai.api_key = API_KEY
 # Configuração do NLTK
 nltk.download('punkt')
 nltk.download('stopwords')
-nltk.download('wordnet')
+nltk.download('rslp')
 
-# Função para extrair texto puro de um PDF
-def extrair_texto_do_pdf(caminho_pdf):
-    texto = ""
-    with open(caminho_pdf, 'rb') as arquivo:
-        leitor_pdf = PyPDF2.PdfReader(arquivo)
-        for pagina in leitor_pdf.pages:
-            texto += pagina.extract_text()
-    return texto
+# Função para listar todos os arquivos PDF em um diretório
+def listar_pdfs_em_diretorio(diretorio):
+    return [os.path.join(diretorio, arquivo) for arquivo in os.listdir(diretorio) if arquivo.lower().endswith('.pdf')]
+
+# Função para converter múltiplos PDFs em texto puro
+def extrair_textos_dos_pdfs(diretorio):
+    lista_caminhos_pdf = listar_pdfs_em_diretorio(diretorio)
+    textos = []
+    for caminho_pdf in lista_caminhos_pdf:
+        texto = ""
+        with open(caminho_pdf, 'rb') as arquivo:
+            leitor_pdf = PyPDF2.PdfReader(arquivo)
+            for pagina in leitor_pdf.pages:
+                texto += pagina.extract_text()
+        textos.append(texto)
+    return textos
 
 # Pré-processamento de texto
 def preprocessar_texto(texto):
@@ -64,10 +72,10 @@ def gerar_resposta(pergunta, contexto):
         model="gpt-3.5-turbo-instruct",
         prompt=prompt,
         max_tokens=300,
-        temperature=0.5,
-        top_p=0.9,
-        frequency_penalty=0.0,
-        presence_penalty=0.0
+        temperature=0.5,  # Ajuste conforme a necessidade para mais ou menos criatividade
+        top_p=1.0,  # Ajuste para controlar a diversidade da resposta
+        frequency_penalty=0.5,  # Ajuste para desencorajar a repetição de palavras
+        presence_penalty=0.5  # Ajuste para encorajar a introdução de novos conceitos
     )
     resposta_texto = resposta.choices[0]['text'].strip()
     # Limpar contexto após cada pergunta
@@ -76,20 +84,18 @@ def gerar_resposta(pergunta, contexto):
     resposta_texto = resposta_texto.strip('()"')
     return resposta_texto
 
-
-
-# Função principal
 # Função principal
 def principal():
     # 1. Pré-processamento de Dados
-    caminhos = [r'C:\Users\gustavo.ferreira\Desktop\back-end-ia-chatBot\Política de Alçadas - Algar S.A-V2-01jan2023.pdf',r'C:\Users\gustavo.ferreira\Desktop\back-end-ia-chatBot\Política de Alçadas - Algar Tech-V3-01jan_2023.pdf', r'C:\Users\gustavo.ferreira\Desktop\back-end-ia-chatBot\Política Corporativa de Remuneração-V1-01jan2023.pdf' ] # Substitua pelo caminho do diretório onde os PDFs estão localizados
-    textos = [extrair_texto_do_pdf(caminho) for caminho in caminhos]
+    diretorio_pdfs = r'C:\Users\gustavo.ferreira\Desktop\IA_chatBot\Políticas'  # Substitua pelo caminho do diretório onde os PDFs estão localizados
+    textos = extrair_textos_dos_pdfs(diretorio_pdfs)
     
     # Pré-processamento dos textos dos documentos
     textos_preprocessados = [preprocessar_texto(texto) for texto in textos if texto.strip()]
     
     # 2. Indexação de Conteúdo
     tfidf_vectorizer, matriz_tfidf = construir_indice(textos_preprocessados)
+
 
     contexto = ""  # Inicializa o contexto como uma string vazia
 
