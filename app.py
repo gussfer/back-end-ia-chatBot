@@ -150,8 +150,10 @@ o contexto como prompts. A resposta é então devolvida ao usuário.
 # Geração de respostas com o ChatGPT
 def gerar_resposta(pergunta, contexto):
     resposta = openai.Completion.create(
-        engine="davinci-002",
-        prompt=f"Pergunta: {pergunta}\nContexto: {contexto}\nResposta:"
+        engine="gpt-3.5-turbo-instruct",
+        prompt=f"Pergunta: {pergunta}\nContexto: {contexto}\nResposta:",
+        stop=None,
+        temperature=0.9
     )
     return resposta.choices[0].text.strip()
 
